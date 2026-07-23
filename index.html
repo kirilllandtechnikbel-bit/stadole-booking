@@ -152,11 +152,14 @@
 <div class="toast" id="toast"></div>
 
 <script>
-// ══════════ Telegram Mini App ══════════
+// ══════════ Telegram Mini App / обычный сайт ══════════
 var tg = window.Telegram && window.Telegram.WebApp;
-if (tg) { tg.ready(); tg.expand();
-  // В Telegram есть своя нижняя кнопка (MainButton) — прячем дублирующую на странице.
-  // Вне Telegram (браузер/Tilda) кнопка на странице остаётся.
+// Скрипт telegram-web-app.js создаёт window.Telegram даже в обычном браузере,
+// поэтому «настоящий» Telegram отличаем по непустому initData. На сайте (Tilda)
+// inTG = false → показываем обычную кнопку на странице.
+var inTG = !!(tg && tg.initData && tg.initData.length > 0);
+if (inTG) { tg.ready(); tg.expand();
+  // Внутри Telegram есть своя нижняя кнопка (MainButton) — прячем дублирующую на странице.
   document.getElementById('send').style.display='none';
 }
 // Подставим имя из профиля Telegram, если есть.
@@ -277,14 +280,14 @@ function valid(){
 function updateSendState(){
   var ok=valid();
   var btn=document.getElementById('send'); btn.disabled=!ok;
-  if(tg){ if(ok){ tg.MainButton.setText('Отправить заявку').show().enable(); } else { tg.MainButton.hide(); } }
+  if(inTG){ if(ok){ tg.MainButton.setText('Отправить заявку').show().enable(); } else { tg.MainButton.hide(); } }
 }
 ['name','phone'].forEach(function(id){ document.getElementById(id).addEventListener('input',updateSendState); });
 
 function send(){
   if(!valid()) return;
   var btn=document.getElementById('send'); btn.disabled=true; btn.textContent='Отправляем…';
-  if(tg){ tg.MainButton.showProgress(); }
+  if(inTG){ tg.MainButton.showProgress(); }
   var body={
     token:API_TOKEN, action:'addBooking',
     checkin:ci, checkout:co,
@@ -293,34 +296,34 @@ function send(){
     guests:document.getElementById('guests').value,
     tariff:tariffLabel(),
     fishing:document.getElementById('fishing').checked?'да':'нет',
-    source:'telegram',
+    source: inTG ? 'telegram' : 'сайт',
     comment:document.getElementById('comment').value.trim()
   };
   fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)})
     .then(function(r){return r.json();})
     .then(function(res){
-      if(tg){ tg.MainButton.hideProgress(); }
+      if(inTG){ tg.MainButton.hideProgress(); }
       if(res && res.ok && res.free){ showDone(); }
       else if(res && res.ok && res.free===false){ occupiedReload(); toast('Увы, эти даты только что заняли. Выберите другие.'); resetBtn(); }
       else { toast('Не получилось отправить. Попробуйте ещё раз.'); resetBtn(); }
     })
-    .catch(function(){ if(tg){tg.MainButton.hideProgress();} toast('Нет связи. Проверьте интернет.'); resetBtn(); });
+    .catch(function(){ if(inTG){tg.MainButton.hideProgress();} toast('Нет связи. Проверьте интернет.'); resetBtn(); });
 }
 function tariffLabel(){
   // грубая метка для хозяина: по дню заезда
   if(!ci) return '';
   var wd=parseIso(ci).getDay(); return (wd===5||wd===6)?'выходные':'будни';
 }
-function resetBtn(){ var b=document.getElementById('send'); b.textContent='Отправить заявку'; b.disabled=!valid(); if(tg){updateSendState();} }
+function resetBtn(){ var b=document.getElementById('send'); b.textContent='Отправить заявку'; b.disabled=!valid(); if(inTG){updateSendState();} }
 function occupiedReload(){ occupied={}; ci=null; co=null; loadBusy(); updateSummary(); }
 function showDone(){
   document.getElementById('app').classList.add('hidden');
   document.getElementById('doneScreen').classList.remove('hidden');
   document.getElementById('doneText').textContent='Даты '+fmt(ci)+' → '+fmt(co)+'. Хозяин свяжется для подтверждения. Спасибо!';
-  if(tg){ tg.MainButton.hide(); }
+  if(inTG){ tg.MainButton.hide(); }
 }
 document.getElementById('send').addEventListener('click',send);
-if(tg){ tg.MainButton.onClick(send); }
+if(inTG){ tg.MainButton.onClick(send); }
 
 // старт
 render(); updateSummary(); loadBusy();
